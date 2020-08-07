@@ -28,9 +28,11 @@ is removed and scheduling can resume.
 
 * This controller currently runs as a cron job every 5 minutes, so if many pods with volumes are scheduled all at once, it may fail to taint
   the node quickly-enough to prevent problems. A future improvement would be to somehow watch nodes being scheduled and do tainting more immediately.
+* If a pod does get stuck either attaching a volume or unable to assign an IP address, this controller will not remedy the problem. A future
+  improvement would be to (after tainting the node) delete pods stuck in this condition to force them to be rescheduled.
 * The node taint that is added prevents *all* pods from being scheduled onto this node, when really we only need to prevent pods with EBS volumes
-  from being scheduled. A future improvement could be to automatically (via a mutating admission controller) add a toleration to pods which don't
-  have persistent volumes, so that this taint is more focused.
+  from being scheduled. You can manually assign tolerations to pods with no EBS volumes to allow them to be scheduled on these nodes, however
+  a future improvement could be to automatically (via a mutating admission controller) add pod tolerations.
 * This controller assumes that all persistent volumes are EBS-backed and does not take NFS or other volume types into account. This controller
   also assumes that kubernetes persistent volumes are the only way volumes are mounted, and not direct EBS volumes.
 
