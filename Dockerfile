@@ -1,19 +1,22 @@
-FROM rust:1.45 as build_env
+FROM rust:1.45-alpine3.12 as build_env
 
 RUN \
-  rustup show; \
-  cargo version; \
-  rustc --version;
+  apk add musl-dev openssl-dev && \
+  rustup target add x86_64-unknown-linux-musl
 
 WORKDIR /package-source
 
 COPY Cargo.toml Cargo.lock ./
 COPY src src/
 
-RUN cargo build --target x86_64-unknown-linux-musl --locked
+RUN cargo build --release --target x86_64-unknown-linux-musl --locked
 
-FROM alpine:3.10 AS runtime
+RUN find -type f
 
-COPY --from build_env /package-source/target/x86_64-unknown-linux-musl/volume-limiting-controller /usr/local/bin/volume-limiting-controller
+FROM alpine:3.12 AS runtime
+
+RUN apk add openssl
+
+COPY --from=build_env /package-source/target/x86_64-unknown-linux-musl/release/volume-limiting-controller /usr/local/bin/volume-limiting-controller
 
 CMD volume-limiting-controller
