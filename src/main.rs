@@ -1,11 +1,11 @@
-use std::convert::TryFrom;
-use lazy_static::lazy_static;
 use futures::try_join;
-use snafu::{Backtrace, Snafu, ResultExt, futures::try_future::{TryFutureExt}};
-use kube::{api::{ListParams, PatchParams, PatchStrategy}};
-use k8s_openapi::api::core::v1::{Pod, Node, Volume, Taint};
+use k8s_openapi::api::core::v1::{Node, Pod, Taint, Volume};
+use kube::api::{ListParams, PatchParams, PatchStrategy};
+use lazy_static::lazy_static;
+use snafu::{futures::try_future::TryFutureExt, Backtrace, ResultExt, Snafu};
 use std::collections::HashMap;
-use tracing::{instrument, event, Level};
+use std::convert::TryFrom;
+use tracing::{event, instrument, Level};
 
 // https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html#AvailableIpPerENI shows a
 // table of how many ENIs are available for node types... in general this maps to the following:
@@ -26,7 +26,9 @@ lazy_static! {
         ("16xlarge", 15u8),
         ("18xlarge", 15u8),
         ("24xlarge", 15u8),
-    ].into_iter().collect();
+    ]
+    .into_iter()
+    .collect();
 }
 
 // For .metal and anything we don't recognize, we assume the worst that it can attach 15 ENIs... different classes do different things.
@@ -40,17 +42,22 @@ const INSTANCE_TYPE_LABEL: &str = "beta.kubernetes.io/instance-type";
 pub enum Error {
     KubeFailure {
         source: kube::error::Error,
-        backtrace: Backtrace
+        backtrace: Backtrace,
     },
 
     SerializationError {
         source: serde_json::error::Error,
-        backtrace: Backtrace
+        backtrace: Backtrace,
     },
 }
 
 fn get_ebs_limit_from_annotation(node: &Node) -> Option<u8> {
-    node.metadata.annotations.as_ref()?.get(LIMIT_ANNOTATION)?.parse().ok()
+    node.metadata
+        .annotations
+        .as_ref()?
+        .get(LIMIT_ANNOTATION)?
+        .parse()
+        .ok()
 }
 
 // Nitro instances are documented to allow 28 attachments, no matter the instance size. In
@@ -58,9 +65,16 @@ fn get_ebs_limit_from_annotation(node: &Node) -> Option<u8> {
 // size, reserve one for the root EBS volume, one for the local SSD volume, and reserve space
 // for the documented number of ENIs.
 fn get_ebs_limit_from_instance_type(node: &Node) -> u8 {
-    let instance_type: &str = node.metadata.labels.as_ref().and_then(|labels| labels.get(INSTANCE_TYPE_LABEL)).map_or("", |s| &s);
+    let instance_type: &str = node
+        .metadata
+        .labels
+        .as_ref()
+        .and_then(|labels| labels.get(INSTANCE_TYPE_LABEL))
+        .map_or("", |s| &s);
     let instance_size = instance_type.split(".").last().unwrap();
-    let eni_limit = ENI_COUNT_BY_INSTANCE_SIZE.get(instance_size).map_or(DEFAULT_ENI_LIMIT, |v| *v);
+    let eni_limit = ENI_COUNT_BY_INSTANCE_SIZE
+        .get(instance_size)
+        .map_or(DEFAULT_ENI_LIMIT, |v| *v);
     28 - 2 - eni_limit
 }
 
@@ -88,15 +102,23 @@ fn pod_node_name(pod: &Pod) -> Option<&String> {
 }
 
 fn node_has_taint(node: &Node) -> bool {
-    node.spec.as_ref().unwrap().taints.as_ref().map_or(false, |taints| {
-        taints.iter().any(|taint| taint.key == TAINT_KEY)
-    })
+    node.spec
+        .as_ref()
+        .unwrap()
+        .taints
+        .as_ref()
+        .map_or(false, |taints| {
+            taints.iter().any(|taint| taint.key == TAINT_KEY)
+        })
 }
 
 #[instrument(skip(client))]
 async fn get_node_volume_counts(client: kube::Client) -> Result<HashMap<String, u8>, Error> {
     let api: kube::Api<Pod> = kube::Api::all(client);
-    let pods = api.list(&ListParams::default()).context(KubeFailure {}).await?;
+    let pods = api
+        .list(&ListParams::default())
+        .context(KubeFailure {})
+        .await?;
 
     let mut node_map: HashMap<String, u8> = HashMap::new();
     for pod in pods.items.iter() {
@@ -114,13 +136,22 @@ async fn get_node_volume_counts(client: kube::Client) -> Result<HashMap<String, 
 #[instrument(skip(client))]
 async fn get_nodes(client: kube::Client) -> Result<Vec<Node>, Error> {
     let api: kube::Api<Node> = kube::Api::all(client);
-    let nodes = api.list(&ListParams::default()).context(KubeFailure {}).await?;
+    let nodes = api
+        .list(&ListParams::default())
+        .context(KubeFailure {})
+        .await?;
     Ok(nodes.items)
 }
 
 #[instrument(skip(client, node), fields(node_name = %node.metadata.name.as_ref().unwrap()))]
 async fn taint_node(client: kube::Client, node: &Node) -> Result<(), Error> {
-    let mut taints = node.spec.as_ref().unwrap().taints.clone().unwrap_or_else(|| Vec::new());
+    let mut taints = node
+        .spec
+        .as_ref()
+        .unwrap()
+        .taints
+        .clone()
+        .unwrap_or_else(|| Vec::new());
     taints.push(Taint {
         effect: String::from("NoSchedule"),
         key: String::from(TAINT_KEY),
@@ -132,34 +163,53 @@ async fn taint_node(client: kube::Client, node: &Node) -> Result<(), Error> {
         "spec": {
             "taints": taints
         }
-    })).context(SerializationError {})?;
+    }))
+    .context(SerializationError {})?;
     let params = PatchParams {
         dry_run: false,
         patch_strategy: PatchStrategy::Strategic,
         force: false,
         field_manager: None,
     };
-    api.patch(node.metadata.name.as_ref().unwrap(), &params, data).context(KubeFailure {}).await?;
+    api.patch(node.metadata.name.as_ref().unwrap(), &params, data)
+        .context(KubeFailure {})
+        .await?;
     Ok(())
 }
 
 #[instrument(skip(client, node), fields(node_name = %node.metadata.name.as_ref().unwrap()))]
 async fn untaint_node(client: kube::Client, node: &Node) -> Result<(), Error> {
-    let taint_vec: Vec<&Taint> = node.spec.as_ref().unwrap().taints.as_ref().unwrap().iter().filter(|taint| taint.key != TAINT_KEY).collect();
-    let taints = if taint_vec.is_empty() { None } else { Some(taint_vec) };
+    let taint_vec: Vec<&Taint> = node
+        .spec
+        .as_ref()
+        .unwrap()
+        .taints
+        .as_ref()
+        .unwrap()
+        .iter()
+        .filter(|taint| taint.key != TAINT_KEY)
+        .collect();
+    let taints = if taint_vec.is_empty() {
+        None
+    } else {
+        Some(taint_vec)
+    };
     let api: kube::Api<Node> = kube::Api::all(client);
     let data = serde_json::to_vec(&serde_json::json!({
         "spec": {
             "taints": taints
         }
-    })).context(SerializationError {})?;
+    }))
+    .context(SerializationError {})?;
     let params = PatchParams {
         dry_run: false,
         patch_strategy: PatchStrategy::Strategic,
         force: false,
         field_manager: None,
     };
-    api.patch(node.metadata.name.as_ref().unwrap(), &params, data).context(KubeFailure {}).await?;
+    api.patch(node.metadata.name.as_ref().unwrap(), &params, data)
+        .context(KubeFailure {})
+        .await?;
     Ok(())
 }
 
@@ -203,10 +253,13 @@ async fn main() -> Result<(), Error> {
         let node_name = node.metadata.name.as_ref().unwrap();
         let volume_count = node_map.get(node_name).copied().unwrap_or(0);
         reconcile_node(client.clone(), node, volume_count)
-    })).await;
+    }))
+    .await;
     for result in results {
         match result {
-            Err(e) => { return Err(e); }
+            Err(e) => {
+                return Err(e);
+            }
             Ok(_) => (),
         }
     }
