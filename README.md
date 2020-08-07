@@ -3,7 +3,7 @@
 This project is a workaround for a missing feature in kubernetes on AWS. If you have been having problems with EBS volumes stuck in the "attaching" state forever, or had nodes where pods never initialize properly
 because they are out of network interfaces (even though they aren't), this may be of help to you!
 
-A typical modern AWS instance uses [Nitro](https://aws.amazon.com/ec2/nitro/) for all external I/O. There is a limit of 28 (or so[1](#user-content-nitro-limit-footnote))
+A typical modern AWS instance uses [Nitro](https://aws.amazon.com/ec2/nitro/) for all external I/O. There is a limit of 28 ([or so](#user-content-nitro-limit-footnote))
 [Nitro "attachments" per instance](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/volume_limits.html), no matter the instance size. But Kubernetes
 does not take this limit into account directly. Kubernetes assumes that it can mount up to 25 EBS volumes per host for these instances.
 
