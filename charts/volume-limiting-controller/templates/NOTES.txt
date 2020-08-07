@@ -1,0 +1,4 @@
+1. The controller is installed, and should run on this schedule: {{ .Values.schedule | quote }}
+2. You may see the results of individual jobs:
+   `kubectl -n {{ .Release.Namespace }} get jobs -l app.kubernetes.io/instance={{ .Release.Name }}`
+   `kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }}`

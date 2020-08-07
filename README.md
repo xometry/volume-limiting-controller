@@ -42,7 +42,8 @@ Install the helm chart using `helm install volume-limiting-controller charts/vol
 may be customized for your chart:
 
 * image.repository and image.tag - *required* 
-* runFrequency - how often the controller should run, in minutes - default is 5 minutes
+* schedule - when should the controller run, as a [cronjob schedule string](https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/).
+  By default, the controller runs every 5 minutes.
 * serviceAccount.create and serviceAccount.name - by default, this chart will create a cluster role, cluster role binding, and service account
   to grant the controller the necessary kubernetes permissions to list pods and nodes, and taint and untaint nodes. If for security reasons
   you need to do this in some other way, you can create your own service account instead of having the chart make one for you.
