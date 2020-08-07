@@ -7,9 +7,8 @@ use k8s_openapi::api::core::v1::{Pod, Node, Volume, Taint};
 use std::collections::HashMap;
 use tracing::{instrument, event, Level};
 
-// Nitro instances allow 28 (or so) attachments, no matter the instance size. We need one for the root EBS volume, one for the local
-// SSD volume and some for the ENIs. https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html#AvailableIpPerENI shows a table
-// of how many ENIs are available for node types... in general this maps to the following:
+// https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html#AvailableIpPerENI shows a
+// table of how many ENIs are available for node types... in general this maps to the following:
 lazy_static! {
     static ref ENI_COUNT_BY_INSTANCE_SIZE: HashMap<&'static str, u8> = vec![
         ("nano", 2u8),
@@ -54,6 +53,10 @@ fn get_ebs_limit_from_annotation(node: &Node) -> Option<u8> {
     node.metadata.annotations.as_ref()?.get(LIMIT_ANNOTATION)?.parse().ok()
 }
 
+// Nitro instances are documented to allow 28 attachments, no matter the instance size. In
+// practice we sometimes see a few more than that, up to 32! But we stick do the documented
+// size, reserve one for the root EBS volume, one for the local SSD volume, and reserve space
+// for the documented number of ENIs.
 fn get_ebs_limit_from_instance_type(node: &Node) -> u8 {
     let instance_type: &str = node.metadata.labels.as_ref().and_then(|labels| labels.get(INSTANCE_TYPE_LABEL)).map_or("", |s| &s);
     let instance_size = instance_type.split(".").last().unwrap();
@@ -189,7 +192,8 @@ async fn main() -> Result<(), Error> {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-        let client = kube::Client::try_default().context(KubeFailure {}).await?;
+    let client = kube::Client::try_default().context(KubeFailure {}).await?;
+
     let (nodes, node_map) = try_join!(
         get_nodes(client.clone()),
         get_node_volume_counts(client.clone()),
