@@ -38,7 +38,12 @@ is removed and scheduling can resume.
 
 ## Installation
 
-Build the container using `docker build` and push it to a location of your choosing. Prebuilt docker containers are currently unavailable.
+We do not have a pipeline set up for this so building is manual.
+
+Build the container using `docker build` and push it to the `384070809049.dkr.ecr.us-west-2.amazonaws.com/volume-limiting-controller` repo. Steps (assuming v0.1.0, modify commands to reflect current version):
+1.  Build the image:  `docker build ./ --tag 384070809049.dkr.ecr.us-west-2.amazonaws.com/volume-limiting-controller:v0.1.0` (where v0.1.0 is the current version)
+2.  Log into the ECR registry.  You can do this with xomcli by running `"xomcli login` or `xomcli ecr:login`.
+3.  Push the image to the repo:  `docker push 384070809049.dkr.ecr.us-west-2.amazonaws.com/volume-limiting-controller:v0.1.0`
 
 Install the helm chart using `helm install volume-limiting-controller charts/volume-limiting-controller --set ...`. The following valuesm
 may be customized for your chart:
