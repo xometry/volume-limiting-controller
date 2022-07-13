@@ -40,7 +40,7 @@ is removed and scheduling can resume.
 
 We do not have a pipeline set up for this so building is manual.
 
-Build the container using `docker build` and push it 384070809049.dkr.ecr.us-west-2.amazonaws.com/volume-limiting-controller. Pre-built containers can be found in this repo.  Steps (assuming v0.1.0, modify commands to reflect current version):
+Build the container using `docker build` and push it to the `384070809049.dkr.ecr.us-west-2.amazonaws.com/volume-limiting-controller` repo. Steps (assuming v0.1.0, modify commands to reflect current version):
 1.  Build the image:  `docker build ./ --tag 384070809049.dkr.ecr.us-west-2.amazonaws.com/volume-limiting-controller:v0.1.0` (where v0.1.0 is the current version)
 2.  log into the ECR registry (make sure you've authenticated with "xomcli login" already!):  `aws ecr get-login-password|docker login --username AWS --password-stdin 384070809049.dkr.ecr.us-west-2.amazonaws.com`
 3.  Push the image to the repo:  `docker push 384070809049.dkr.ecr.us-west-2.amazonaws.com/volume-limiting-controller:v0.1.0`
